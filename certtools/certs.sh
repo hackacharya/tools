@@ -45,7 +45,6 @@ createaesca)
    CA=$2
    echo "Creating new Cert Authority $CA valid for 10 years ... " ;
    echo
-   openssl genrsa -aes256 -out x.key 2048
    openssl genrsa -out ca/${CA}_CA.key 2048
    chmod go-rwx ca/${CA}_CA.key
    openssl req -x509 -new -key ca/${CA}_CA.key -sha256 -days 3650 -out ca/${CA}_CA.crt 
