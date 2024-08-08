@@ -19,6 +19,7 @@
 #  3-random values in bodies and urls
 #  4-store cookies against their domain, allow sending to different domains in one run.
 #  5-save cookies across runs.
+#  6-handle field seperator literals
 #
 #
 #
@@ -29,10 +30,18 @@ import json
 import time
 import os
 import re
+import signal
+
 
 
 MY_NAME="injector/1.0"
-debug = False;
+g_stop_processing = False;
+g_debug = False;
+
+def signal_handler(sig, frame):
+    print("Interrupt")
+    g_stop_processing = True;
+
 
 
 # read_request_details_csv
@@ -98,8 +107,12 @@ def parse_nameeqvalue_str(nameeqvalue_str):
 
     pairs = nev_str.split(',')
     for pair in pairs:
-        key, value = pair.split('=', 1)
-        name_value_dict[key.strip()] = replace_variables(value.strip())
+        try:
+            key, value = pair.split('=', 1)
+            name_value_dict[key.strip()] = replace_variables(value.strip())
+        except ValueError:
+            print("ignoring .. ", pair)
+            continue;
     return name_value_dict
 
 # read_cookies_from_json
@@ -141,9 +154,12 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
             # cookie_name, *cookie_value = cookie.split('=')
             #cookie_jar.set(cookie_name, cookie_value.join('=')) 
 
+
+    exception = False;
+    error_str = None
     start_time = time.time()
     try:
-       if debug:
+       if g_debug:
             print(f"Request ->\n{method} {url}")
             if headers:
                 for hkey, hvalue in headers.items():
@@ -157,36 +173,45 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
                                    timeout=timeout / 1000,verify=verify,
                                    cert=(cert, key) if cert and key else cert,data=body)
         # Print response details if debug is enabled
-       if debug:
+       if g_debug:
             print("\n\nResponse ->\n", response.status_code)
             print(" ")
             if response.text:
                 print(response.text)
             print("...")
     except requests.exceptions.Timeout:
-        end_time = time.time()
-        response_time_ms = (end_time - start_time) * 1000  
-        return None, None, None
+        exception = True;
+        error_str = "Timeout"
     except requests.exceptions.SSLError as e:
-        end_time = time.time()
-        response_time_ms = (end_time - start_time) * 1000  
-        return None, str(e), None
-    end_time = time.time()
+        exception = True;
+        error_str = "SSLError"
+    except requests.exceptions.InvalidHeader:
+        exception = True;
+        error_str = "InvalidHeader"
+    except Exception as e:
+        exception = True;
+        error_str = str(e);
 
-    # For use in the next request 
+    end_time = time.time()
+    response_time_ms = (end_time - start_time) * 1000  
+
+    if exception:
+        return None, error_str, response_time_ms
+	
+    # Save for use in the next request 
     for cookie in response.cookies:
         cookies.append(f"{cookie.name}={cookie.value}")
 
-    response_time_ms = (end_time - start_time) * 1000  
     return response, cookies, response_time_ms
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Send HTTPS requests using CSV data.')
 parser.add_argument('--url-prefix', type=str, default='', help='String to prefix to all URL strings')
-parser.add_argument('--request-details-csv', default='request-details.csv', help='Name of CSV data file')
-parser.add_argument('--use-configured-cookies', action='store_true', default=True, help='Use configured cookies in addition to received cookies')
-parser.add_argument('--cookie-file', type=str, help='Path to JSON file containing request cookies')
-parser.add_argument('--timeoutms', type=int, default=20000, help='Timeout for requests in milliseconds')
+parser.add_argument('--start-from', type=str, default='', help='Skip all reqeust until this Testcase ID')
+parser.add_argument('--request-details-csv', default='request-details.csv', help='Name of CSV data file, default request-details.csv')
+parser.add_argument('--use-configured-cookies', action='store_true', default=True, help='Use configured cookies in addition to received cookies, default on')
+parser.add_argument('--cookie-file', type=str, help='Path to JSON file containing request cookies, default cookies.json')
+parser.add_argument('--timeoutms', type=int, default=10000, help='Timeout for requests in milliseconds, default 10s')
 parser.add_argument('--trust-chain', type=str, help='Path to custom trust chain file')
 parser.add_argument('--client-cert', type=str, help='Path to client certificate file')
 parser.add_argument('--client-key', type=str, help='Path to client private key file')
@@ -195,7 +220,7 @@ parser.add_argument('--requests-per-second', type=float, default=1.0, help='Numb
 parser.add_argument('--debug', action='store_true', default=False, help='Enable debug output for requests and responses')
 args = parser.parse_args()
 
-debug = args.debug;
+g_debug = args.debug;
 request_details = read_request_details_csv(args.request_details_csv)
 
 # Export a cookies from a request from web dev tools on your browser 
@@ -213,7 +238,17 @@ if args.skip_tls_verification:
 testcase_results = {}
 delay_between_requests = 1.0 / args.requests_per_second  
 
+
+# Some way to skip a set of tests
+skip_processing = False;
+if len(args.start_from.strip()) > 0:
+    skip_processing = True
+
+signal.signal(signal.SIGINT, signal_handler) 
+
 for row in request_details:
+    if g_stop_processing:
+        break;
     testcase_id = row['Testcase ID']
     http_method = row['HTTP Method']
     request_url = row['URL']
@@ -221,9 +256,15 @@ for row in request_details:
     all_cookies = row['Cookies']
     usr_body = row['Body']
 
+    # skip until we find the test case marked.
+    if testcase_id.strip() == args.start_from.strip():
+        skip_processing = False
+    if skip_processing:
+        continue;
+
     # if no prefix is specified and a commandline prefix is provided use it. 
     if not request_url.startswith(('http://', 'https://')):
-        request_url = args.url_prefix + request_url
+        request_url = args.url_prefix + request_url.strip()
     request_headers = parse_nameeqvalue_str(all_headers)
     request_headers["User-Agent"] = MY_NAME;
     #cookiesdict = parse_nameeqvalue_str(all_cookies);
@@ -250,7 +291,7 @@ for row in request_details:
     if raw_body:
         body = replace_variables(raw_body)  # Use the value directly and replace variables
 
-    if debug:
+    if g_debug:
         print(f"-> Processing request {testcase_id} for {request_url}")
 
     response, received_cookies, response_time_ms = send_https_request(
@@ -274,9 +315,7 @@ for row in request_details:
     content_length = "0"
     if response is None:
         if isinstance(received_cookies, str):
-            status_code = "SSLError"
-        else:
-            status_code = "Timeout"
+            status_code = received_cookies; # ugly hack
     else:
         if response.headers.get('Content-Length'):
             content_length = response.headers.get('Content-Length')
