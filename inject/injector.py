@@ -204,8 +204,6 @@ initial_cookies = []
 if args.cookie_file:
     initial_cookies_dict = read_cookies_from_json(args.cookie_file)
     initial_cookies = [f"{name}={value}" for name, value in initial_cookies_dict.items()]
-    print("cookies")
-    print(initial_cookies)
 
 # support for self signed certs and such.
 verify = args.trust_chain if args.trust_chain else True
