@@ -1,0 +1,7 @@
+Testcase ID,HTTP Method,URL,Headers,Cookies,Body
+TC001,GET,http://api.example.org/,,,,
+TC002,POST,/api/v1/search,"Content-Type=application/json,Authorization=Bearer abc123,X-Custom-Header=value","session_id=abc123, user_id=xyz456","{user_id:joe}"
+TC003,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer abc123",,user_id=123
+TC005,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}"
+TC005,POST,/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,"{obj_name:one}"
+TC006,POST,https://api.example.org/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,@TC006.data
