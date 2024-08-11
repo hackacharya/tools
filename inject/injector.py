@@ -19,7 +19,6 @@
 #  3-random values in bodies and urls
 #  4-store cookies against their domain, allow sending to different domains in one run.
 #  5-save cookies across runs.
-#  6-handle field seperator literals
 #
 #
 #
@@ -31,12 +30,14 @@ import time
 import os
 import re
 import signal
+import sys
 
 
 
-MY_NAME="injector/1.0"
+MY_NAME="injector/1.1"
 g_stop_processing = False;
 g_debug = False;
+g_show_cookies = False;
 
 def signal_handler(sig, frame):
     print("Interrupt")
@@ -105,11 +106,20 @@ def parse_nameeqvalue_str(nameeqvalue_str):
     if len(nev_str) == 0:
         return name_value_dict;
 
-    pairs = nev_str.split(',')
+    # Allow and handle escaped commans handle escaped commas inside header values
+    # Allow and handle handle escaped is-equial-to within values.
+    # Example:
+    # The following should produce two headers Accept and Content-Type only 
+    # with their proper values.
+    #
+    #  multieq = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
+    esc_nev = nev_str.replace("\\,","$kMa$").replace("\\=", "$eZq$")
+    pairs = esc_nev.split(',')
     for pair in pairs:
         try:
             key, value = pair.split('=', 1)
-            name_value_dict[key.strip()] = replace_variables(value.strip())
+            new_val = value.replace("$kMa$", ",").replace("$eZq$", "=").strip()
+            name_value_dict[key.strip()] = replace_variables(new_val);
         except ValueError:
             print("ignoring .. ", pair)
             continue;
@@ -167,7 +177,7 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
             print(" ")
             if body:
                 print(body)
-            if cookies:
+            if cookies and g_show_cookies:
                 print("cookies:", cookies)
        response = requests.request(method,url,headers=headers,cookies=cookie_jar,
                                    timeout=timeout / 1000,verify=verify,
@@ -204,6 +214,12 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
 
     return response, cookies, response_time_ms
 
+multieq = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
+vals = parse_nameeqvalue_str(multieq)
+print (vals);
+sys.exit(0)
+
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Send HTTPS requests using CSV data.')
 parser.add_argument('--url-prefix', type=str, default='', help='String to prefix to all URL strings')
@@ -218,9 +234,11 @@ parser.add_argument('--client-key', type=str, help='Path to client private key f
 parser.add_argument('--skip-tls-verification', action='store_true', help='Skip TLS verification failures')
 parser.add_argument('--requests-per-second', type=float, default=1.0, help='Number of requests to send per second')
 parser.add_argument('--debug', action='store_true', default=False, help='Enable debug output for requests and responses')
+parser.add_argument('--show-cookies', action='store_true', default=False, help='In debug output show cookies also')
 args = parser.parse_args()
 
 g_debug = args.debug;
+g_show_cookies = args.show_cookies;
 request_details = read_request_details_csv(args.request_details_csv)
 
 # Export a cookies from a request from web dev tools on your browser 
@@ -265,6 +283,7 @@ for row in request_details:
     # if no prefix is specified and a commandline prefix is provided use it. 
     if not request_url.startswith(('http://', 'https://')):
         request_url = args.url_prefix + request_url.strip()
+
     request_headers = parse_nameeqvalue_str(all_headers)
     request_headers["User-Agent"] = MY_NAME;
     #cookiesdict = parse_nameeqvalue_str(all_cookies);

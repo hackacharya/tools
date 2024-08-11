@@ -5,3 +5,5 @@ TC003,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer a
 TC005,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}"
 TC005,POST,/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,"{obj_name:one}"
 TC006,POST,https://api.example.org/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,@TC006.data
+
+# Escape commas(,) and is-equal-to signs (=) in header values with a back slash.
