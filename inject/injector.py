@@ -34,7 +34,7 @@ import sys
 
 
 
-MY_NAME="injector/1.1"
+MY_NAME="injector/1.2"
 g_stop_processing = False;
 g_debug = False;
 g_show_cookies = False;
@@ -88,7 +88,7 @@ def read_request_details_csv(file_path):
 # Allow use of env values in header and body values
 # Remember to export the env values use ${ENV_VARIABLE}
 # --------------------------------------------------------------
-def replace_variables(value):
+def replace_env_variables(value):
     # Use regex to find all occurrences of ${VARIABLE_NAME}
     return re.sub(r'\$\{(\w+)\}', 
                   lambda match: os.environ.get(match.group(1), ''), value)
@@ -119,7 +119,7 @@ def parse_nameeqvalue_str(nameeqvalue_str):
         try:
             key, value = pair.split('=', 1)
             new_val = value.replace("$kMa$", ",").replace("$eZq$", "=").strip()
-            name_value_dict[key.strip()] = replace_variables(new_val);
+            name_value_dict[key.strip()] = replace_env_variables(new_val);
         except ValueError:
             print("ignoring .. ", pair)
             continue;
@@ -214,12 +214,6 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
 
     return response, cookies, response_time_ms
 
-multieq = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
-vals = parse_nameeqvalue_str(multieq)
-print (vals);
-sys.exit(0)
-
-
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Send HTTPS requests using CSV data.')
 parser.add_argument('--url-prefix', type=str, default='', help='String to prefix to all URL strings')
@@ -294,7 +288,7 @@ for row in request_details:
     # a way to provide bodies.
     raw_body = None
     if usr_body:
-        body_value = usr_body.strip()
+        body_value = usr_body.strip().strip('"')
         if body_value.startswith('@'): # filename
             filename = body_value[1:]
             if os.path.isfile(filename):
@@ -308,7 +302,8 @@ for row in request_details:
 
     body = None;
     if raw_body:
-        body = replace_variables(raw_body)  # Use the value directly and replace variables
+        body = raw_body.strip().strip('"').replace('\\"', '"')  # allow quotes escaping inside JSON bodies.
+        body = replace_env_variables(raw_body)  
 
     if g_debug:
         print(f"-> Processing request {testcase_id} for {request_url}")
