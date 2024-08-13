@@ -1,4 +1,4 @@
-
+j
 INJECTOR QUICK START
 
 1. Make a copy of the csv file
@@ -11,6 +11,9 @@ To get the cookies.json
   use Firefox or any browser, go into dev mode, look at the request and Find the cookies header and doa "COPY all" and paste into this cookies.json file.
   The format is the firefox export format.
 
+REserved patterns
+ $kMa$
+ $esCol$
 
 
 Example request-details file
@@ -26,3 +29,6 @@ TC006,POST,https://api.example.org/api/createobject,"Content-Type=application/te
 # Escape commas(,) and is-equal-to signs (=) in header values with a backslash.
 # Multiple headers with both , and = embedded in the values
 #  = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
+
+# For JSON bodies use quotes and escaped quotes
+TC006,POST,https://api.example.org/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,"{\"name\":\"value\", \"another field\":\"another value\"}"

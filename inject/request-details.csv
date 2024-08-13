@@ -1,9 +1,18 @@
 Testcase ID,HTTP Method,URL,Headers,Cookies,Body
-TC001,GET,http://api.example.org/,,,,
-TC002,POST,/api/v1/search,"Content-Type=application/json,Authorization=Bearer abc123,X-Custom-Header=value","session_id=abc123, user_id=xyz456","{user_id:joe}"
-TC003,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer abc123",,user_id=123
-TC005,PUT,/api/savedetails,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}"
-TC005,POST,/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,"{obj_name:one}"
-TC006,POST,https://api.example.org/api/createobject,"Content-Type=application/text,Authorization=Bearer ${API_TOKEN}",,@TC006.data
+
+TC01_SIMPLE_GET,GET,http://api.example.org/
+TC02_USE_PREFIX,GET,/
+TC03_HDR_CUST,GET,/api/v1/search?querykey=queryvalue1&querykey2=queryvalue2,"X-Custom-Header:q=0.9;"
+TC04_HDR_MULTI,POST,/api/v1/search,"Content-Type:text/plain,Accept:application/json,X-Custom-Header:value",,"some randomdata; user_id=joe;"
+TC04_HDR_MULTI,POST,/api/v1/search,"Content-Type:text/plain,Accept:application/json,Prioirty:2",,"some randomdata; user_id=joe;"
+TC04_HDR_MULTI_CUK_BD,POST,/api/v1/search,"Content-Type:text/plain/json,Accept:applicaiton/json,X-Custom-Header:value","session_id=abc123, user_id=xyz456","some randomdata; user_id=joe"
+TC05_HDR_ESC_COLON,GET,/api/v1/search?querykey=queryvalue1&querykey2=queryvalue2,"X-Ratio-Header:ratio=3\:9;"
+TC05_HDR_COLON_VALUE,GET,/api/v1/search?querykey=queryvalue1&querykey2=queryvalue2,"X-Ratio-Header:ratio=3:9,X-Graph-Type: lineplot x:time y:volume"
+TC06_HDR_CUK_BD_JSON,POST,/api/v1/search,"Content-Type:application/json,Accept:text/plain,X-Custom-Header:value\:coloninvalue","session_id=abc123, user_id=xyz456","{"user_id":"joe"}
+TC07_HDR_CUK_BD_USE_kMa,POST,/api/v1/search,"Content-Type:application/json,Authorization:Bearer abc123,X-Custom-Header:value","session_id=abc123, user_id=xyz456",{"user_id":"joe"${kMa} "another header:"value"}
+TC08_HDR_CUK_BD_ESC_COMMAS_FAIL,POST,/api/v1/search,"Content-Type:application/json,X-Custom-Header:value","session_id=abc123, user_id=xyz456",{"user_id":"joe","another header":"value"}
+TC09_HDR_USE_ENV_VAR,POST,/api/createobject,"Content-Type:application/text,Authorization:Bearer ${API_TOKEN}",,{"obj_name":"one"}
+TC10_BODY_USE_ENV_VAR,POST,/api/createobject,"Content-Type:application/text,Authorization:Bearer ${API_TOKEN}",,{"token":${API_TOKEN}}
+TC11_BODY_IN_A_FILE,POST,https://api.example.org/api/createobject,"Content-Type:application/json,Authorization:Bearer ${API_TOKEN}",,@TC11-body.json
 
 # Escape commas(,) and is-equal-to signs (=) in header values with a back slash.

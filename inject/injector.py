@@ -34,7 +34,7 @@ import sys
 
 
 
-MY_NAME="injector/1.2"
+MY_NAME="injector/1.4"
 g_stop_processing = False;
 g_debug = False;
 g_show_cookies = False;
@@ -96,13 +96,13 @@ def replace_env_variables(value):
 # Headers column example
 # "Content-Type=application/json,Authorization=Bearer abc123,X-Custom-Header=value/34"
 # returns dict
-def parse_nameeqvalue_str(nameeqvalue_str):
+def parse_namecolonvalue_str(namecolonvalue_str):
     name_value_dict = {}
 
-    if not nameeqvalue_str:
+    if not namecolonvalue_str:
         return name_value_dict;
 
-    nev_str =  nameeqvalue_str.strip().strip('"').strip()
+    nev_str =  namecolonvalue_str.strip().strip('"').strip()
     if len(nev_str) == 0:
         return name_value_dict;
 
@@ -113,12 +113,12 @@ def parse_nameeqvalue_str(nameeqvalue_str):
     # with their proper values.
     #
     #  multieq = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
-    esc_nev = nev_str.replace("\\,","$kMa$").replace("\\=", "$eZq$")
+    esc_nev = nev_str.replace("\\,","${kMa}").replace("\\:", "${esCol}")
     pairs = esc_nev.split(',')
     for pair in pairs:
         try:
-            key, value = pair.split('=', 1)
-            new_val = value.replace("$kMa$", ",").replace("$eZq$", "=").strip()
+            key, value = pair.split(':', 1)
+            new_val = value.replace("$esCol$", ":").strip() # kMa replace taken care of by replace_envars
             name_value_dict[key.strip()] = replace_env_variables(new_val);
         except ValueError:
             print("ignoring .. ", pair)
@@ -150,7 +150,7 @@ def read_cookies_from_json(file_path):
 #
 #    return response, cookies, response_time
 #
-def send_https_request(method, url, headers, cookies, use_configured_cookies, timeout, verify, cert, key, body):
+def send_https_request(sendreq, method, url, headers, cookies, use_configured_cookies, timeout, verify, cert, key, body):
     # Create a CookieJar to store cookies
     cookie_jar = requests.cookies.RequestsCookieJar()
 
@@ -168,9 +168,13 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
     exception = False;
     error_str = None
     start_time = time.time()
+    response = None;
     try:
        if g_debug:
-            print(f"Request ->\n{method} {url}")
+            if sendreq:
+                print(f"Request ->\n{method} {url}")
+            else:
+                print(f"Would be Request ->\n{method} {url}")
             if headers:
                 for hkey, hvalue in headers.items():
                     print(f"{hkey}: {hvalue}")
@@ -179,16 +183,15 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
                 print(body)
             if cookies and g_show_cookies:
                 print("cookies:", cookies)
-       response = requests.request(method,url,headers=headers,cookies=cookie_jar,
-                                   timeout=timeout / 1000,verify=verify,
-                                   cert=(cert, key) if cert and key else cert,data=body)
-        # Print response details if debug is enabled
-       if g_debug:
-            print("\n\nResponse ->\n", response.status_code)
-            print(" ")
-            if response.text:
-                print(response.text)
-            print("...")
+       if sendreq:
+            response = requests.request(method,url,headers=headers, cookies=cookie_jar, timeout=timeout / 1000, verify=verify, cert=(cert, key) if cert and key else cert,data=body) 
+            # Print response details if debug is enabled
+            if g_debug:
+                print("\n\nResponse ->\n", response.status_code)
+                print(" ")
+                if response.text:
+                    print(response.text)
+                    print("...")
     except requests.exceptions.Timeout:
         exception = True;
         error_str = "Timeout"
@@ -209,15 +212,21 @@ def send_https_request(method, url, headers, cookies, use_configured_cookies, ti
         return None, error_str, response_time_ms
 	
     # Save for use in the next request 
-    for cookie in response.cookies:
-        cookies.append(f"{cookie.name}={cookie.value}")
+    if response:
+        for cookie in response.cookies:
+            cookies.append(f"{cookie.name}={cookie.value}")
 
     return response, cookies, response_time_ms
 
+#multieq1 = '"Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
+#multieq2 = "Accept=text/html\,application/xhtml+xml\,application/xml;q\=0.9;image/avif\,image/webp\,image/png\,image/svg+xml\,*/*;q\=0.8,Content-Type=application/json"
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Send HTTPS requests using CSV data.')
+parser.add_argument('--parse-only', action='store_true', default=False, help='Only parse the input and show what will happen')
 parser.add_argument('--url-prefix', type=str, default='', help='String to prefix to all URL strings')
 parser.add_argument('--start-from', type=str, default='', help='Skip all reqeust until this Testcase ID')
+parser.add_argument('--count', type=int, default=0, help='Process only count number lines/cases and stop')
 parser.add_argument('--request-details-csv', default='request-details.csv', help='Name of CSV data file, default request-details.csv')
 parser.add_argument('--use-configured-cookies', action='store_true', default=True, help='Use configured cookies in addition to received cookies, default on')
 parser.add_argument('--cookie-file', type=str, help='Path to JSON file containing request cookies, default cookies.json')
@@ -233,6 +242,8 @@ args = parser.parse_args()
 
 g_debug = args.debug;
 g_show_cookies = args.show_cookies;
+g_num_tests = args.count;
+g_parse_only = args.parse_only
 request_details = read_request_details_csv(args.request_details_csv)
 
 # Export a cookies from a request from web dev tools on your browser 
@@ -258,6 +269,10 @@ if len(args.start_from.strip()) > 0:
 
 signal.signal(signal.SIGINT, signal_handler) 
 
+# Needed for our comm and colon escapes
+os.environ["kMa"] = ','
+os.environ["esCol"] = ':'
+
 for row in request_details:
     if g_stop_processing:
         break;
@@ -278,11 +293,12 @@ for row in request_details:
     if not request_url.startswith(('http://', 'https://')):
         request_url = args.url_prefix + request_url.strip()
 
-    request_headers = parse_nameeqvalue_str(all_headers)
+    request_headers = parse_namecolonvalue_str(all_headers)
     request_headers["User-Agent"] = MY_NAME;
-    #cookiesdict = parse_nameeqvalue_str(all_cookies);
+   
     request_cookies = []
     if all_cookies:
+        # TODO split on comma?
         request_cookies.append(all_cookies.strip('"'))
 
     # a way to provide bodies.
@@ -296,9 +312,9 @@ for row in request_details:
                     raw_body = file.read()
             else:
                 print(f"{testcase_id}, Error: File '{filename}' not found.")
-                continue  # Skip this request if the file is not found
+                continue  # Skip this request line if the file is not found
         else:
-            raw_body = body_value  # Use the value directly and replace variables
+            raw_body = body_value 
 
     body = None;
     if raw_body:
@@ -309,6 +325,7 @@ for row in request_details:
         print(f"-> Processing request {testcase_id} for {request_url}")
 
     response, received_cookies, response_time_ms = send_https_request(
+        not g_parse_only,
         http_method,
         request_url,
         request_headers,
@@ -320,11 +337,9 @@ for row in request_details:
         args.client_key,
         body
     )
-
     short_req_url = request_url.split("?")[0]
     #if not debug:
         #short_req_url = request_url[:40].ljust(34)
-
     status_code = None
     content_length = "0"
     if response is None:
@@ -335,11 +350,14 @@ for row in request_details:
             content_length = response.headers.get('Content-Length')
         status_code = response.status_code
         testcase_results[testcase_id] = (short_req_url, response.status_code, response_time_ms, content_length)
-
     print(f"-> {testcase_id}: {status_code}, {response_time_ms:.2f} ms {content_length} {short_req_url} ..")
+    time.sleep(delay_between_requests) # throttle the requests
 
-    # throttle the requests
-    time.sleep(delay_between_requests)
+    # process only count lines where possible.
+    if g_num_tests > 0:
+        g_num_tests = g_num_tests - 1;
+        if g_num_tests == 0:
+            break;
 
 print("\n\nSummary Report: -- ")
 for testcase_id, (short_req_url, status_code, time_ms, clen) in testcase_results.items():
