@@ -15,16 +15,24 @@
 
   #App operations
    genkey <appname>  - Generates a new Key pair for an app/service
+   
    gencsr <appname>  - Using the key generated earlier generates a Cert Sign REqeust
 
   #Test operations
    showcert <cappname> - show the cert file name for the app or the ca
+   
    showfingerprint  <appname> - show the cert file SHA256 finger print 
+   
    compare <appname> - Check if the pubkey is the same in all keys/certs.
+   
    runclient <appname> <host> <portnum>
+   
    runclientwithca <appname> <host> <portnum> <caname>
+   
    runserver <appname> <portnum>
+   
    runserverwithca <appname> <portnum> <caname>
+
     
 
    #Example Usage
