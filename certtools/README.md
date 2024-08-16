@@ -2,12 +2,15 @@
 
   #CA operations
    createca <caname> - Creates a CA 
+   
    issucert <caname> <appname>  - Using the given CA and a CSR generated 
                                   for an svc/app - issue a cert to the app 
+				  
    issusancert <caname> <appname> - Using the given CA and a CSR generated 
                                     for an svc/app - issue a cert to the app 
 			             this cert will contain SAN also
 				   Now a days you need SAN in addition to CN
+       
    showcacert <ca>   - show the cert file name for the app or the ca
 
   #App operations
