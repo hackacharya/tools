@@ -19,8 +19,8 @@
 #  3-random values in bodies and urls
 #  4-store cookies against their domain, allow sending to different domains in one run.
 #  5-save cookies across runs.
-#
-#
+#  7-support 4xx,5xx etc in expectedstatus
+#  8-andle interrupts properly
 #
 import csv
 import requests
@@ -34,7 +34,7 @@ import sys
 
 
 
-MY_NAME="injector/1.4"
+MY_NAME="injector/1.5"
 g_stop_processing = False;
 g_debug = False;
 g_show_cookies = False;
@@ -74,6 +74,8 @@ def signal_handler(sig, frame):
 # ---------------------------------------------
 def read_request_details_csv(file_path):
     data = []
+    if not os.path.isfile(file_path):
+        return None;
     with open(file_path, 'r', newline='') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -140,6 +142,8 @@ def parse_namecolonvalue_str(namecolonvalue_str):
 #}
 #
 def read_cookies_from_json(file_path):
+    if not os.path.isfile(file_path):
+        return None;
     with open(file_path, 'r') as file:
         cookies_data = json.load(file)
         return cookies_data.get("Request Cookies", {})
@@ -246,12 +250,17 @@ g_num_tests = args.count;
 g_parse_only = args.parse_only
 request_details = read_request_details_csv(args.request_details_csv)
 
+if request_details == None:
+    print("Request details file not found.")
+    sys.exit(2)
+
 # Export a cookies from a request from web dev tools on your browser 
 # and use the json - see format above, or create one manually.
 initial_cookies = []
 if args.cookie_file:
     initial_cookies_dict = read_cookies_from_json(args.cookie_file)
-    initial_cookies = [f"{name}={value}" for name, value in initial_cookies_dict.items()]
+    if initial_cookies_dict != None:
+        initial_cookies = [f"{name}={value}" for name, value in initial_cookies_dict.items()]
 
 # support for self signed certs and such.
 verify = args.trust_chain if args.trust_chain else True
@@ -278,16 +287,26 @@ for row in request_details:
         break;
     testcase_id = row['Testcase ID']
     http_method = row['HTTP Method']
+    expected_statuses_str = ""
+    try:
+        expected_statuses_str = row['Expected Statuses']
+    except KeyError:
+        pass 
     request_url = row['URL']
     all_headers = row['Headers']
     all_cookies = row['Cookies']
     usr_body = row['Body']
-
     # skip until we find the test case marked.
     if testcase_id.strip() == args.start_from.strip():
         skip_processing = False
     if skip_processing:
         continue;
+    expected_statuses=[];
+    try:
+        expected_status_arr=expected_statuses_str.strip().split("|")
+        expected_statuses = [int(s.strip()) for s in expected_status_arr if s.isdigit()]
+    except Exception as e:
+        pass
 
     # if no prefix is specified and a commandline prefix is provided use it. 
     if not request_url.startswith(('http://', 'https://')):
@@ -349,8 +368,13 @@ for row in request_details:
         if response.headers.get('Content-Length'):
             content_length = response.headers.get('Content-Length')
         status_code = response.status_code
-        testcase_results[testcase_id] = (short_req_url, response.status_code, response_time_ms, content_length)
-    print(f"-> {testcase_id}: {status_code}, {response_time_ms:.2f} ms {content_length} {short_req_url} ..")
+        resultstr = "FAIL";
+        if not any(expected_statuses):
+            resultstr = "UNKN";
+        elif status_code in expected_statuses:
+            resultstr = "PASS";
+        testcase_results[testcase_id] = (short_req_url, resultstr, response.status_code, response_time_ms, content_length)
+    print(f"-> {testcase_id}: {status_code}, {resultstr}, {response_time_ms:.2f} ms {content_length} {short_req_url} ..")
     time.sleep(delay_between_requests) # throttle the requests
 
     # process only count lines where possible.
@@ -360,8 +384,8 @@ for row in request_details:
             break;
 
 print("\n\nSummary Report: -- ")
-for testcase_id, (short_req_url, status_code, time_ms, clen) in testcase_results.items():
+for testcase_id, (short_req_url, tcresult, status_code, time_ms, clen) in testcase_results.items():
     if status_code == "Timeout" or status_code == "SSLError":
-        print(f"{testcase_id}: {status_code} {args.timeoutms:.2f}ms {clen} {short_req_url}")
+        print(f"{testcase_id},  {status_code}, {tcresult}, {args.timeoutms:.2f}ms, {clen}, {short_req_url}")
     else:
-        print(f"{testcase_id}: {status_code} {time_ms:.2f}ms {clen} {short_req_url}")
+        print(f"{testcase_id}, {status_code}, {tcresult}, {time_ms:.2f}ms, {clen}, {short_req_url}")
