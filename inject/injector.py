@@ -34,13 +34,13 @@ import sys
 
 
 
-MY_NAME="injector/1.5"
+MY_NAME="injector/1.5.1"
 g_stop_processing = False;
 g_debug = False;
 g_show_cookies = False;
 
 def signal_handler(sig, frame):
-    print("Interrupt")
+    global g_stop_processing;
     g_stop_processing = True;
 
 
@@ -382,6 +382,9 @@ for row in request_details:
         g_num_tests = g_num_tests - 1;
         if g_num_tests == 0:
             break;
+
+if g_stop_processing:
+	print("Interrupted...\n");
 
 print("\n\nSummary Report: -- ")
 for testcase_id, (short_req_url, tcresult, status_code, time_ms, clen) in testcase_results.items():
