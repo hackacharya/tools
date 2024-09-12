@@ -36,8 +36,8 @@ createca)
    openssl genrsa -out ca/${CA}_CA.key 2048
    chmod go-rwx ca/${CA}_CA.key
    openssl req -x509 -new -key ca/${CA}_CA.key -sha256 -days 3650 -out ca/${CA}_CA.crt 
-   openssl rsa -in ${CA}_CA.key -pubout > ${CA}_CA.pub
-   echo "CA key ${CA}_CA.key, Cert=${CA}_CA.crt" 
+   openssl rsa -in ca/${CA}_CA.key -pubout > ca/${CA}_CA.pub
+   echo "CA key ca/${CA}_CA.key, Cert=ca/${CA}_CA.crt" 
    ;;
 
 createaesca)
@@ -48,8 +48,8 @@ createaesca)
    openssl genrsa -out ca/${CA}_CA.key 2048
    chmod go-rwx ca/${CA}_CA.key
    openssl req -x509 -new -key ca/${CA}_CA.key -sha256 -days 3650 -out ca/${CA}_CA.crt 
-   openssl rsa -in ${CA}_CA.key -pubout > ${CA}_CA.pub
-   echo "CA key ${CA}_CA.key, Cert=${CA}_CA.crt" 
+   openssl rsa -in ca/${CA}_CA.key -pubout > ca/${CA}_CA.pub
+   echo "CA key ca/${CA}_CA.key, ca/Cert=${CA}_CA.crt"
    ;;
 
 issuecert)
