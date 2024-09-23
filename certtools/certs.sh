@@ -23,26 +23,33 @@
 # https://www.openssl.org/docs/man1.1.1/man1/
 #
 
-case $1 in 
+VERSION="1.4"
 
+case $1 in 
                    ############# ca stuff #########
 createca)
    mkdir -p ./ca
    CA=$2
    echo "Creating new Cert Authority $CA valid for 10 years ... " ;
-   echo
-   echo "** Enter a nice domain/hostname/appname/svcname in the CN field **"
-   echo 
+   EXTRA_OPTS="-quiet -subj $3"
+   if [ "x$3"  == "x" ]; then
+       echo "** Enter proper CA-name for the CN field below **"
+       EXTRA_OPTS=""
+   fi 
+   if [ "$3"  == "blanks"  ]; then
+       EXTRA_OPTS="-quiet -subj /C=/ST=/L=/O=/OU=/CN=${CA}/emailAddress="
+   fi
    openssl genrsa -out ca/${CA}_CA.key 2048
    chmod go-rwx ca/${CA}_CA.key
-   openssl req -x509 -new -key ca/${CA}_CA.key -sha256 -days 3650 -out ca/${CA}_CA.crt 
+   openssl req -x509 -new -key ca/${CA}_CA.key -sha256 -days 3650 -out ca/${CA}_CA.crt $EXTRA_OPTS 2>&1 | grep -v "No value provided"
    openssl rsa -in ca/${CA}_CA.key -pubout > ca/${CA}_CA.pub
    echo "CA key ca/${CA}_CA.key, Cert=ca/${CA}_CA.crt" 
    ;;
 
-createaesca)
+createaesca) # TODO fix this.
    mkdir -p ./ca
    CA=$2
+   echo
    echo "Creating new Cert Authority $CA valid for 10 years ... " ;
    echo
    openssl genrsa -out ca/${CA}_CA.key 2048
@@ -56,8 +63,6 @@ issuecert)
   CA=$2
   APP=$3
   echo "Trying to issue a certificate from ${APP}.csr CSR using ${CA} valid for 1 year .."
-  echo
-  # openssl x509 -req -days 365 -in ${APP}.csr  -signkey ca/${CA}_CA.key  -out ${APP}.crt
   openssl x509 -req -days 365 -in ${APP}.csr -CA ca/${CA}_CA.crt -CAkey ca/${CA}_CA.key -out ${APP}.crt
   echo "Your signed cert should be in ${APP}.crt.."
   ;;
@@ -65,8 +70,7 @@ issuecert)
 issuesancert)
   CA=$2
   APP=$3
-  echo "Trying to issue a certficate based on CSR ${APP}.csr using ${CA} valid for 1 year .."
-  echo
+  echo "Trying to issue a certficate based on CSR ${APP}.csr using CA ${CA} valid for 1 year .."
   cat > extension.${APP} << END_OF_EXT
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
@@ -101,11 +105,17 @@ genkey)
 
 gencsr)
     APP=$2;
+    # /C=US/ST=State/L=City/O=Org/OU=Unit/CN=$APP/emailAddress="
     echo "Generating a Certificate signing request for a $APP"
-    echo 
-    echo "** Enter your domain/hostname/appname/svcname in the CN field **"
-    echo
-    openssl req -new -key ${APP}.key -out ${APP}.csr
+    EXTRA_OPTS="-subj $3"
+    if [ "x$3"  == "x" ]; then
+      echo "** Enter proper domain/hostname/appname/svcname in the CN field **"
+	    EXTRA_OPTS=""
+    fi
+    if [ "$3"  == "blanks"  ]; then
+	    EXTRA_OPTS="-quiet -subj /C=/ST=/L=/O=/OU=/CN=$APP/emailAddress="
+    fi
+    openssl req -new -key ${APP}.key -out ${APP}.csr -sha256 $EXTRA_OPTS 2>&1 | grep -v "No value provided"
     ;;
 
 showcacert)
@@ -177,7 +187,14 @@ help|*)
   Dev/Test Certificate Generation, Signing help tool
 
   CA operations
-   createca <caname> - Creates a CA 
+   createca <caname> [ 'blanks' | <subject> ] - Creates a CA 
+     where,
+     <subject> = "/C=<country>/ST=<state>/O=<org>/OU=<unit>/CN=<CN>/emailAddress=<emailAddress>"
+
+   createaesca <caname> [ 'blanks' | <subject> ] - Creates a CA  with AES
+     where,
+     <subject> = "/C=<country>/ST=<state>/O=<org>/OU=<unit>/CN=<CN>/emailAddress=<emailAddress>"
+
    issucert <caname> <appname>  - Using the given CA and a CSR generated 
                                   for an svc/app - issue a cert to the app 
    issusancert <caname> <appname> - Using the given CA and a CSR generated 
@@ -188,7 +205,10 @@ help|*)
 
   App operations
    genkey <appname>  - Generates a new Key pair for an app/service
-   gencsr <appname>  - Using the key generated earlier generates a Cert Sign REqeust
+   gencsr <appname>  [ 'blanks' | <subject> ] - Using the key generated earlier generates a Cert Sign Reqeust
+     where optionally,
+     <subject> = "/C=<country>/ST=<state>/O=<org>/OU=<unit>/CN=<CN>/emailAddress=<emailAddress>"
+     Other than CN all <> params can be blank
 
   Test operations
    showcert <cappname> - show the cert file name for the app or the ca
