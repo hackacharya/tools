@@ -31,13 +31,13 @@ createca)
    mkdir -p ./ca
    CA=$2
    echo "Creating new Cert Authority $CA valid for 10 years ... " ;
-   EXTRA_OPTS="-quiet -subj $3"
+   EXTRA_OPTS="-subj $3"
    if [ "x$3"  == "x" ]; then
        echo "** Enter proper CA-name for the CN field below **"
        EXTRA_OPTS=""
    fi 
    if [ "$3"  == "blanks"  ]; then
-       EXTRA_OPTS="-quiet -subj /C=/ST=/L=/O=/OU=/CN=${CA}/emailAddress="
+       EXTRA_OPTS="-subj /C=/ST=/L=/O=/OU=/CN=${CA}/emailAddress="
    fi
    openssl genrsa -out ca/${CA}_CA.key 2048
    chmod go-rwx ca/${CA}_CA.key
@@ -113,7 +113,7 @@ gencsr)
 	    EXTRA_OPTS=""
     fi
     if [ "$3"  == "blanks"  ]; then
-	    EXTRA_OPTS="-quiet -subj /C=/ST=/L=/O=/OU=/CN=$APP/emailAddress="
+	    EXTRA_OPTS="-subj /C=/ST=/L=/O=/OU=/CN=$APP/emailAddress="
     fi
     openssl req -new -key ${APP}.key -out ${APP}.csr -sha256 $EXTRA_OPTS 2>&1 | grep -v "No value provided"
     ;;
