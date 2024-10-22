@@ -6,7 +6,7 @@
 # ./certs.sh genkey mywebapp25
 # ./certs.sh gencsr mywebapp25
 #
-# ./certs.sh issuecert mywebapp25
+# ./certs.sh issuecert devca1 mywebapp25
 # ./certs.sh showcert mywebapp25
 #
 # ./certtest.py app25

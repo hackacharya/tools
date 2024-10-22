@@ -70,7 +70,10 @@ issuecert)
 issuesancert)
   CA=$2
   APP=$3
-  echo "Trying to issue a certficate based on CSR ${APP}.csr using CA ${CA} valid for 1 year .."
+  shift 3;
+  SAN_LIST="$*"
+  echo "Trying to issue a certficate based on CSR ${APP}.csr using CA "${CA}" valid for 1 year .."
+  echo "SANS = $SAN_LIST " 
   cat > extension.${APP} << END_OF_EXT
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
@@ -79,6 +82,14 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1 = ${APP}
 END_OF_EXT
+
+  # Add additional SANs to the configuration file dynamically.
+  count=2;
+  for altname in `echo $SAN_LIST`
+  do
+       echo "DNS.$count = $altname" >> extension.${APP}
+       count=$((count+1))
+  done
   openssl x509 -req -in ${APP}.csr -CA ca/${CA}_CA.crt -CAkey ca/${CA}_CA.key \
 	-CAcreateserial -out ${APP}.crt -days 365 -sha256 -extfile extension.${APP}
   ;;
@@ -197,10 +208,12 @@ help|*)
 
    issucert <caname> <appname>  - Using the given CA and a CSR generated 
                                   for an svc/app - issue a cert to the app 
-   issusancert <caname> <appname> - Using the given CA and a CSR generated 
-                                    for an svc/app - issue a cert to the app 
-			             this cert will contain SAN also
-				   Now a days you need SAN in addition to CN
+   issusancert <caname> <appname> [<altname2> <altname3> ... ] - 
+                                - Using the given CA and a CSR generated 
+                                  for an svc/app - issue a cert to the app 
+			          this cert will contain SAN also
+				  Now a days you need SAN in addition to CN
+			          altnames are added to he Subject Alt Name list
    showcacert <ca>   - show the cert file name for the app or the ca
 
   App operations
